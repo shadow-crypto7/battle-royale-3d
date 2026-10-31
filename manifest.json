@@ -1,7 +1,7 @@
 {
   "name": "Battle Royale 3D",
   "short_name": "BR 3D",
-  "description": "Survive, eliminate enemies, and win the 3D battle royale arena.",
+  "description": "4v4 3D Battle Royale across 5 challenging levels.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "fullscreen",
@@ -17,4 +17,5 @@
     }
   ]
 }
+
 

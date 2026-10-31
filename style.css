@@ -1,244 +1,137 @@
-
 * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+  -webkit-user-select: none;
 }
-
 html, body {
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    background: #111;
-    font-family: Arial, sans-serif;
-    touch-action: none;
-    user-select: none;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  touch-action: none;
+  font-family: sans-serif;
 }
-
-#game {
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
+#canvas-container {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
-
-#game canvas {
-    display: block;
-    width: 100%;
-    height: 100%;
+#ui-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
-
 #hud {
-    position: fixed;
-    inset: 0;
-    z-index: 2;
-    pointer-events: none;
-    color: white;
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #fff;
+  font-weight: bold;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+  font-size: 16px;
 }
-
-.top {
-    display: flex;
-    justify-content: space-between;
-    padding: 15px;
+.hud-badge {
+  background: rgba(0,0,0,0.5);
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.2);
 }
-
-.status {
-    background: rgba(0,0,0,.65);
-    border: 1px solid rgba(255,255,255,.25);
-    padding: 9px 14px;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: bold;
-}
-
-#health {
-    position: absolute;
-    top: 65px;
-    left: 15px;
-    width: 145px;
-    height: 12px;
-    background: #333;
-    border: 1px solid white;
-    border-radius: 10px;
-    overflow: hidden;
-}
-
-#healthFill {
-    width: 100%;
-    height: 100%;
-    background: #22df65;
-    transition: width .2s;
-}
-
 #crosshair {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 25px;
-    color: white;
-    text-shadow: 0 0 5px black;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255,255,255,0.85);
+  border-radius: 50%;
+  pointer-events: none;
 }
-
-#message {
-    position: absolute;
-    top: 42%;
-    width: 100%;
-    text-align: center;
-    font-size: 24px;
-    font-weight: bold;
-    color: white;
-    text-shadow: 2px 2px 5px black;
+#touch-controls {
+  position: absolute;
+  inset: 0;
+  display: flex;
 }
-
-#controls {
-    position: fixed;
-    inset: 0;
-    z-index: 3;
-    pointer-events: none;
+#move-zone {
+  width: 50%;
+  height: 100%;
+  pointer-events: auto;
+  position: relative;
 }
-
-#joystick {
-    position: absolute;
-    left: 35px;
-    bottom: 45px;
-    width: 125px;
-    height: 125px;
-    border-radius: 50%;
-    background: rgba(255,255,255,.13);
-    border: 2px solid rgba(255,255,255,.6);
-    pointer-events: auto;
-    touch-action: none;
+#look-zone {
+  width: 50%;
+  height: 100%;
+  pointer-events: auto;
+  position: relative;
 }
-
-#stick {
-    position: absolute;
-    width: 52px;
-    height: 52px;
-    left: 34px;
-    top: 34px;
-    border-radius: 50%;
-    background: rgba(255,255,255,.75);
-    border: 2px solid white;
-    pointer-events: none;
+#joystick-base {
+  position: absolute;
+  bottom: 30px;
+  left: 40px;
+  width: 110px;
+  height: 110px;
+  background: rgba(255,255,255,0.15);
+  border: 2px solid rgba(255,255,255,0.3);
+  border-radius: 50%;
+  display: none;
 }
-
-.action {
-    position: absolute;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 2px solid rgba(255,255,255,.8);
-    border-radius: 50%;
-    color: white;
-    background: rgba(0,0,0,.55);
-    font-weight: bold;
-    pointer-events: auto;
-    touch-action: none;
+#joystick-thumb {
+  position: absolute;
+  top: 30px;
+  left: 30px;
+  width: 50px;
+  height: 50px;
+  background: rgba(255,255,255,0.6);
+  border-radius: 50%;
 }
-
-#fire {
-    right: 35px;
-    bottom: 55px;
-    width: 85px;
-    height: 85px;
-    background: rgba(210,35,25,.8);
-    font-size: 17px;
+#fire-btn {
+  position: absolute;
+  bottom: 30px;
+  right: 35px;
+  width: 80px;
+  height: 80px;
+  background: rgba(230, 40, 40, 0.7);
+  border: 3px solid rgba(255,255,255,0.6);
+  border-radius: 50%;
+  color: #fff;
+  font-size: 16px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
 }
-
-#jump {
-    right: 135px;
-    bottom: 65px;
-    width: 58px;
-    height: 58px;
-    font-size: 11px;
+#status-modal {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: #fff;
+  pointer-events: auto;
+  text-align: center;
 }
-
-#sprint {
-    right: 120px;
-    bottom: 140px;
-    width: 55px;
-    height: 55px;
-    font-size: 10px;
+#status-title {
+  font-size: 32px;
+  margin-bottom: 12px;
 }
-
-#aim {
-    right: 35px;
-    bottom: 155px;
-    width: 55px;
-    height: 55px;
-    font-size: 12px;
-}
-
-.action:active {
-    transform: scale(.9);
-    filter: brightness(1.4);
-}
-
-#startScreen {
-    position: fixed;
-    inset: 0;
-    z-index: 10;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0,0,0,.85);
-    color: white;
-    text-align: center;
-}
-
-#startScreen h1 {
-    color: #ffca28;
-    font-size: 32px;
-    margin-bottom: 12px;
-}
-
-#startScreen p {
-    font-size: 14px;
-    color: #ddd;
-}
-
-#startButton {
-    padding: 15px 40px;
-    margin-top: 25px;
-    background: #e94325;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 18px;
-    font-weight: bold;
-}
-
-#startButton:active {
-    transform: scale(.95);
-}
-
-@media (max-width: 600px) {
-    #joystick {
-        left: 20px;
-        bottom: 30px;
-    }
-
-    #fire {
-        right: 20px;
-        bottom: 35px;
-    }
-
-    #jump {
-        right: 115px;
-        bottom: 45px;
-    }
-
-    #aim {
-        right: 20px;
-        bottom: 140px;
-    }
-
-    #sprint {
-        right: 105px;
-        bottom: 120px;
-    }
+#status-btn {
+  margin-top: 16px;
+  padding: 12px 28px;
+  font-size: 18px;
+  font-weight: bold;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
 }
