@@ -1,11 +1,19 @@
 import * as THREE from 'three';
 
+function lockLandscape() {
+  if (screen.orientation && screen.orientation.lock) {
+    screen.orientation.lock('landscape').catch(() => {});
+  }
+}
+window.addEventListener('click', lockLandscape, { once: true });
+window.addEventListener('touchstart', lockLandscape, { once: true });
+
 let currentLevel = 1;
 const MAX_LEVELS = 5;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb);
-scene.fog = new THREE.FogExp2(0x87ceeb, 0.015);
+scene.fog = new THREE.FogExp2(0x87ceeb, 0.012);
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -21,7 +29,6 @@ dirLight.position.set(50, 80, 40);
 dirLight.castShadow = true;
 scene.add(dirLight);
 
-// Ground
 const groundGeo = new THREE.PlaneGeometry(300, 300);
 const groundMat = new THREE.MeshLambertMaterial({ color: 0x3d7e35 });
 const ground = new THREE.Mesh(groundGeo, groundMat);
@@ -29,42 +36,50 @@ ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 scene.add(ground);
 
-// Obstacles
 const obstacles = [];
+const obstacleBoxes = [];
+
 function buildObstacles() {
   obstacles.forEach(o => scene.remove(o));
   obstacles.length = 0;
-  for (let i = 0; i < 35; i++) {
+  obstacleBoxes.length = 0;
+
+  for (let i = 0; i < 30; i++) {
     const isBuilding = Math.random() > 0.4;
+    const width = isBuilding ? 6 : 2;
+    const height = isBuilding ? 10 : 6;
+    const depth = isBuilding ? 6 : 2;
     const mesh = new THREE.Mesh(
-      isBuilding ? new THREE.BoxGeometry(6, 10, 6) : new THREE.CylinderGeometry(1.2, 1.6, 6, 8),
-      new THREE.MeshLambertMaterial({ color: isBuilding ? 0x888888 : 0x5a3d28 })
+      isBuilding ? new THREE.BoxGeometry(width, height, depth) : new THREE.CylinderGeometry(1, 1.4, height, 8),
+      new THREE.MeshLambertMaterial({ color: isBuilding ? 0x777777 : 0x5a3d28 })
     );
-    const x = (Math.random() - 0.5) * 220;
-    const z = (Math.random() - 0.5) * 220;
-    if (Math.hypot(x, z) < 18) continue;
-    mesh.position.set(x, isBuilding ? 5 : 3, z);
+    const x = (Math.random() - 0.5) * 200;
+    const z = (Math.random() - 0.5) * 200;
+    if (Math.hypot(x, z) < 22) continue;
+
+    mesh.position.set(x, height / 2, z);
     mesh.castShadow = true;
     scene.add(mesh);
     obstacles.push(mesh);
+
+    const box = new THREE.Box3();
+    box.setFromCenterAndSize(mesh.position, new THREE.Vector3(width + 1.2, height, depth + 1.2));
+    obstacleBoxes.push(box);
   }
 }
 
-// Camera Angles (Left/Right yaw & Up/Down pitch)
 let cameraYaw = 0;
 let cameraPitch = 0;
-const PITCH_LIMIT = Math.PI / 2.5; // ~72 degrees vertical limit
+const PITCH_LIMIT = 0.85;
 
 const player = {
-  mesh: new THREE.Group(),
+  mesh: new THREE.Mesh(new THREE.BoxGeometry(1.4, 2.4, 1.4), new THREE.MeshLambertMaterial({ color: 0x2563eb })),
   hp: 100,
   speed: 0.35,
-  isAlive: true
+  isAlive: true,
+  isAlly: true
 };
-const pBody = new THREE.Mesh(new THREE.BoxGeometry(1.4, 2.4, 1.4), new THREE.MeshLambertMaterial({ color: 0x2563eb }));
-pBody.position.y = 1.2;
-pBody.castShadow = true;
-player.mesh.add(pBody);
+player.mesh.castShadow = true;
 scene.add(player.mesh);
 
 let allies = [];
@@ -72,17 +87,16 @@ let enemies = [];
 let bullets = [];
 
 function createAgent(isAlly, x, z) {
-  const group = new THREE.Group();
-  const color = isAlly ? 0x60a5fa : 0xef4444;
-  const body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 2.4, 1.4), new THREE.MeshLambertMaterial({ color }));
-  body.position.y = 1.2;
-  body.castShadow = true;
-  group.add(body);
-  group.position.set(x, 0, z);
-  scene.add(group);
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(1.4, 2.4, 1.4),
+    new THREE.MeshLambertMaterial({ color: isAlly ? 0x60a5fa : 0xef4444 })
+  );
+  mesh.position.set(x, 1.2, z);
+  mesh.castShadow = true;
+  scene.add(mesh);
   return {
-    mesh: group,
-    hp: 70 + currentLevel * 10,
+    mesh,
+    hp: 80 + currentLevel * 10,
     isAlly,
     isAlive: true,
     lastShot: Date.now() + Math.random() * 2000
@@ -92,127 +106,162 @@ function createAgent(isAlly, x, z) {
 function spawnTeams() {
   allies.forEach(a => scene.remove(a.mesh));
   enemies.forEach(e => scene.remove(e.mesh));
+  bullets.forEach(b => scene.remove(b.mesh));
   allies = [];
   enemies = [];
+  bullets = [];
 
-  // Player reset
-  player.mesh.position.set(0, 0, 40);
+  player.mesh.position.set(0, 1.2, 35);
   player.hp = 100;
   player.isAlive = true;
 
-  // 3 AI Allies (making 4 Blues total with player)
   for (let i = 0; i < 3; i++) {
-    allies.push(createAgent(true, (i - 1) * 8, 48));
+    allies.push(createAgent(true, (i - 1) * 8, 42));
   }
-  // 4 AI Enemies (Red Team)
   for (let i = 0; i < 4; i++) {
-    enemies.push(createAgent(false, (i - 1.5) * 12, -40 - (currentLevel * 4)));
+    enemies.push(createAgent(false, (i - 1.5) * 12, -35 - (currentLevel * 4)));
   }
   updateHUD();
 }
 
 function shoot(origin, direction, isPlayerOrAlly) {
-  const bulletGeo = new THREE.SphereGeometry(0.25, 8, 8);
-  const bulletMat = new THREE.MeshBasicMaterial({ color: isPlayerOrAlly ? 0x60a5fa : 0xf87171 });
+  const bulletGeo = new THREE.SphereGeometry(0.35, 8, 8);
+  const bulletMat = new THREE.MeshBasicMaterial({ color: isPlayerOrAlly ? 0x93c5fd : 0xfca5a5 });
   const bullet = new THREE.Mesh(bulletGeo, bulletMat);
   bullet.position.copy(origin);
   scene.add(bullet);
   bullets.push({
     mesh: bullet,
     dir: direction.clone().normalize(),
-    life: 70,
+    life: 60,
     isPlayerOrAlly
   });
 }
 
-// Controls
-let moveX = 0, moveY = 0;
-let lastTouchX = 0, lastTouchY = 0;
-let activeTouchId = null;
+function collidesWithObstacle(pos) {
+  for (let i = 0; i < obstacleBoxes.length; i++) {
+    if (obstacleBoxes[i].containsPoint(pos)) return true;
+  }
+  return false;
+}
 
-const lookZone = document.getElementById('look-zone');
+let moveTouchId = null;
+let lookTouchId = null;
+let moveX = 0, moveY = 0;
+let lastLookX = 0, lastLookY = 0;
+
 const moveZone = document.getElementById('move-zone');
+const lookZone = document.getElementById('look-zone');
 const joyBase = document.getElementById('joystick-base');
 const joyThumb = document.getElementById('joystick-thumb');
 
 moveZone.addEventListener('touchstart', (e) => {
-  const t = e.changedTouches[0];
-  joyBase.style.display = 'block';
-  joyBase.style.left = `${t.clientX - 55}px`;
-  joyBase.style.top = `${t.clientY - 55}px`;
-  joyThumb.style.transform = `translate(0px, 0px)`;
-});
+  for (let i = 0; i < e.changedTouches.length; i++) {
+    const t = e.changedTouches[i];
+    if (moveTouchId === null) {
+      moveTouchId = t.identifier;
+      updateJoystick(t);
+      break;
+    }
+  }
+}, { passive: false });
 
 moveZone.addEventListener('touchmove', (e) => {
-  const t = e.touches[0];
+  for (let i = 0; i < e.changedTouches.length; i++) {
+    const t = e.changedTouches[i];
+    if (t.identifier === moveTouchId) {
+      updateJoystick(t);
+      break;
+    }
+  }
+}, { passive: false });
+
+function clearMoveTouch(e) {
+  for (let i = 0; i < e.changedTouches.length; i++) {
+    if (e.changedTouches[i].identifier === moveTouchId) {
+      moveTouchId = null;
+      moveX = 0;
+      moveY = 0;
+      joyThumb.style.transform = `translate(0px, 0px)`;
+      break;
+    }
+  }
+}
+moveZone.addEventListener('touchend', clearMoveTouch);
+moveZone.addEventListener('touchcancel', clearMoveTouch);
+
+function updateJoystick(touch) {
   const rect = joyBase.getBoundingClientRect();
-  const dx = t.clientX - (rect.left + 55);
-  const dy = t.clientY - (rect.top + 55);
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  const dx = touch.clientX - centerX;
+  const dy = touch.clientY - centerY;
   const dist = Math.min(Math.hypot(dx, dy), 40);
   const angle = Math.atan2(dy, dx);
+
   moveX = (Math.cos(angle) * dist) / 40;
   moveY = (Math.sin(angle) * dist) / 40;
   joyThumb.style.transform = `translate(${Math.cos(angle) * dist}px, ${Math.sin(angle) * dist}px)`;
-});
-
-function resetJoystick() {
-  moveX = 0;
-  moveY = 0;
-  joyBase.style.display = 'none';
 }
-moveZone.addEventListener('touchend', resetJoystick);
-moveZone.addEventListener('touchcancel', resetJoystick);
 
-// Up / Down + Left / Right Camera Look
 lookZone.addEventListener('touchstart', (e) => {
-  const t = e.changedTouches[0];
-  if (e.target.id === 'fire-btn') return;
-  activeTouchId = t.identifier;
-  lastTouchX = t.clientX;
-  lastTouchY = t.clientY;
-});
+  for (let i = 0; i < e.changedTouches.length; i++) {
+    const t = e.changedTouches[i];
+    if (t.target.id !== 'fire-btn' && lookTouchId === null) {
+      lookTouchId = t.identifier;
+      lastLookX = t.clientX;
+      lastLookY = t.clientY;
+      break;
+    }
+  }
+}, { passive: false });
 
 lookZone.addEventListener('touchmove', (e) => {
   for (let i = 0; i < e.changedTouches.length; i++) {
     const t = e.changedTouches[i];
-    if (t.identifier === activeTouchId) {
-      const deltaX = t.clientX - lastTouchX;
-      const deltaY = t.clientY - lastTouchY;
-      lastTouchX = t.clientX;
-      lastTouchY = t.clientY;
+    if (t.identifier === lookTouchId) {
+      const deltaX = t.clientX - lastLookX;
+      const deltaY = t.clientY - lastLookY;
+      lastLookX = t.clientX;
+      lastLookY = t.clientY;
 
-      cameraYaw -= deltaX * 0.005;
-      cameraPitch -= deltaY * 0.005; // Up/down pitch
+      cameraYaw -= deltaX * 0.006;
+      cameraPitch -= deltaY * 0.006;
       cameraPitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, cameraPitch));
+      break;
     }
   }
-});
+}, { passive: false });
 
-function resetLookTouch(e) {
+function clearLookTouch(e) {
   for (let i = 0; i < e.changedTouches.length; i++) {
-    if (e.changedTouches[i].identifier === activeTouchId) {
-      activeTouchId = null;
+    if (e.changedTouches[i].identifier === lookTouchId) {
+      lookTouchId = null;
+      break;
     }
   }
 }
-lookZone.addEventListener('touchend', resetLookTouch);
-lookZone.addEventListener('touchcancel', resetLookTouch);
+lookZone.addEventListener('touchend', clearLookTouch);
+lookZone.addEventListener('touchcancel', clearLookTouch);
 
-// Fire Button
-document.getElementById('fire-btn').addEventListener('touchstart', (e) => {
+const fireBtn = document.getElementById('fire-btn');
+fireBtn.addEventListener('touchstart', (e) => {
   e.stopPropagation();
   if (!player.isAlive) return;
+
   const aimDir = new THREE.Vector3(
     -Math.sin(cameraYaw) * Math.cos(cameraPitch),
     Math.sin(cameraPitch),
     -Math.cos(cameraYaw) * Math.cos(cameraPitch)
-  );
-  shoot(new THREE.Vector3(player.mesh.position.x, 2, player.mesh.position.z), aimDir, true);
-});
+  ).normalize();
+
+  const spawnPos = player.mesh.position.clone().add(new THREE.Vector3(0, 0.8, 0)).add(aimDir.clone().multiplyScalar(1.2));
+  shoot(spawnPos, aimDir, true);
+}, { passive: false });
 
 function updateHUD() {
   document.getElementById('level-display').innerText = `Level: ${currentLevel}/${MAX_LEVELS}`;
-  document.getElementById('hp-display').innerText = `Player HP: ${Math.max(0, player.hp)}`;
+  document.getElementById('hp-display').innerText = `Player HP: ${Math.max(0, Math.round(player.hp))}`;
   const aliveAllies = (player.isAlive ? 1 : 0) + allies.filter(a => a.isAlive).length;
   const aliveEnemies = enemies.filter(e => e.isAlive).length;
   document.getElementById('team-display').innerText = `Blue: ${aliveAllies} | Red: ${aliveEnemies}`;
@@ -237,26 +286,25 @@ function checkMatchState() {
 
   if (aliveEnemies === 0) {
     if (currentLevel < MAX_LEVELS) {
-      showModal(`Level ${currentLevel} Cleared!`, 'Your 4v4 squad took the win.', `Start Level ${currentLevel + 1}`, () => {
+      showModal(`Level ${currentLevel} Cleared!`, 'Squad wiped the enemy team.', `Start Level ${currentLevel + 1}`, () => {
         currentLevel++;
         buildObstacles();
         spawnTeams();
       });
     } else {
-      showModal('VICTORY ROYALE!', 'You completed all 5 levels!', 'Restart Game', () => {
+      showModal('VICTORY ROYALE!', 'You conquered all 5 levels!', 'Play Again', () => {
         currentLevel = 1;
         buildObstacles();
         spawnTeams();
       });
     }
   } else if (aliveBlues === 0) {
-    showModal('Squad Eliminated', `You fell in Level ${currentLevel}.`, 'Retry Level', () => {
+    showModal('Squad Eliminated', `Defeated in Level ${currentLevel}.`, 'Retry Level', () => {
       spawnTeams();
     });
   }
 }
 
-// Game Loop
 const clock = new THREE.Clock();
 
 function animate() {
@@ -264,33 +312,32 @@ function animate() {
   const delta = clock.getDelta();
 
   if (player.isAlive) {
-    // Movement relative to camera yaw
     const forward = new THREE.Vector3(-Math.sin(cameraYaw), 0, -Math.cos(cameraYaw));
     const right = new THREE.Vector3(Math.cos(cameraYaw), 0, -Math.sin(cameraYaw));
-    const moveVector = forward.multiplyScalar(-moveY).add(right.multiplyScalar(moveX));
-    player.mesh.position.add(moveVector.multiplyScalar(player.speed));
+    const moveVector = forward.multiplyScalar(-moveY).add(right.multiplyScalar(moveX)).multiplyScalar(player.speed);
 
-    // Update Camera position behind player with yaw & pitch
+    const nextPos = player.mesh.position.clone().add(moveVector);
+    if (!collidesWithObstacle(nextPos)) {
+      player.mesh.position.copy(nextPos);
+    }
+
     const camDist = 6;
     const camHeight = 3.2;
     camera.position.x = player.mesh.position.x + Math.sin(cameraYaw) * Math.cos(cameraPitch) * camDist;
     camera.position.y = player.mesh.position.y + camHeight - Math.sin(cameraPitch) * camDist;
     camera.position.z = player.mesh.position.z + Math.cos(cameraYaw) * Math.cos(cameraPitch) * camDist;
-    camera.lookAt(player.mesh.position.x, player.mesh.position.y + 1.8, player.mesh.position.z);
+    camera.lookAt(player.mesh.position.x, player.mesh.position.y + 1.6, player.mesh.position.z);
   }
 
-  // AI Allies & Enemies logic
   const now = Date.now();
   const allAgents = [...allies, ...enemies];
 
   allAgents.forEach(agent => {
     if (!agent.isAlive) return;
 
-    // Target detection
     const targets = agent.isAlly ? enemies.filter(e => e.isAlive) : [player, ...allies].filter(b => b.isAlive);
     if (targets.length === 0) return;
 
-    // Pick closest target
     let nearest = targets[0];
     let minDist = 9999;
     targets.forEach(t => {
@@ -298,68 +345,80 @@ function animate() {
       if (d < minDist) { minDist = d; nearest = t; }
     });
 
-    // Move toward target
     const dir = new THREE.Vector3().subVectors(nearest.mesh.position, agent.mesh.position).normalize();
-    if (minDist > 12) {
-      agent.mesh.position.add(dir.clone().multiplyScalar(0.08 + currentLevel * 0.015));
+
+    if (minDist > 14) {
+      const step = dir.clone().multiplyScalar(0.09 + currentLevel * 0.015);
+      const nextAgentPos = agent.mesh.position.clone().add(step);
+      if (!collidesWithObstacle(nextAgentPos)) {
+        agent.mesh.position.copy(nextAgentPos);
+      }
     }
 
-    // AI Shoot
-    if (now - agent.lastShot > 1600 - (currentLevel * 100)) {
+    if (now - agent.lastShot > 1700 - (currentLevel * 100)) {
       agent.lastShot = now;
       shoot(
-        new THREE.Vector3(agent.mesh.position.x, 1.8, agent.mesh.position.z),
-        dir.add(new THREE.Vector3((Math.random() - 0.5) * 0.15, 0, (Math.random() - 0.5) * 0.15)),
+        agent.mesh.position.clone().add(new THREE.Vector3(0, 0.8, 0)),
+        dir.add(new THREE.Vector3((Math.random() - 0.5) * 0.12, 0, (Math.random() - 0.5) * 0.12)),
         agent.isAlly
       );
     }
   });
 
-  // Bullets
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
-    b.mesh.position.add(b.dir.clone().multiplyScalar(1.2));
+    b.mesh.position.add(b.dir.clone().multiplyScalar(1.3));
     b.life--;
 
-    // Collision checking
     let hit = false;
-    if (b.isPlayerOrAlly) {
-      // Hit Enemies
-      enemies.forEach(e => {
-        if (e.isAlive && b.mesh.position.distanceTo(e.mesh.position) < 1.6) {
-          e.hp -= 35;
+
+    if (collidesWithObstacle(b.mesh.position)) {
+      hit = true;
+    }
+
+    if (!hit) {
+      if (b.isPlayerOrAlly) {
+        for (let j = 0; j < enemies.length; j++) {
+          const e = enemies[j];
+          if (e.isAlive && b.mesh.position.distanceTo(e.mesh.position) < 2.0) {
+            e.hp -= 40;
+            hit = true;
+            if (e.hp <= 0) {
+              e.isAlive = false;
+              scene.remove(e.mesh);
+              checkMatchState();
+            }
+            updateHUD();
+            break;
+          }
+        }
+      } else {
+        if (player.isAlive && b.mesh.position.distanceTo(player.mesh.position) < 2.0) {
+          player.hp -= 15 + currentLevel * 2;
           hit = true;
-          if (e.hp <= 0) {
-            e.isAlive = false;
-            scene.remove(e.mesh);
+          if (player.hp <= 0) {
+            player.isAlive = false;
             checkMatchState();
           }
           updateHUD();
         }
-      });
-    } else {
-      // Hit Allies or Player
-      if (player.isAlive && b.mesh.position.distanceTo(player.mesh.position) < 1.6) {
-        player.hp -= 15 + currentLevel * 2;
-        hit = true;
-        if (player.hp <= 0) {
-          player.isAlive = false;
-          checkMatchState();
+        if (!hit) {
+          for (let k = 0; k < allies.length; k++) {
+            const a = allies[k];
+            if (a.isAlive && b.mesh.position.distanceTo(a.mesh.position) < 2.0) {
+              a.hp -= 25;
+              hit = true;
+              if (a.hp <= 0) {
+                a.isAlive = false;
+                scene.remove(a.mesh);
+                checkMatchState();
+              }
+              updateHUD();
+              break;
+            }
+          }
         }
-        updateHUD();
       }
-      allies.forEach(a => {
-        if (a.isAlive && b.mesh.position.distanceTo(a.mesh.position) < 1.6) {
-          a.hp -= 20;
-          hit = true;
-          if (a.hp <= 0) {
-            a.isAlive = false;
-            scene.remove(a.mesh);
-            checkMatchState();
-          }
-          updateHUD();
-        }
-      });
     }
 
     if (hit || b.life <= 0) {
@@ -377,7 +436,6 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// Start Match
 buildObstacles();
 spawnTeams();
 animate();
